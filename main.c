@@ -2,8 +2,17 @@
 loosely inspired by the following Computerphile video: https://www.youtube.com/watch?v=Q2UDHY5as90
 */
 
-// edit FILENAME constant to edit path to file to parse
+#define PROG "1 hello world" // -> 1 because trailing elements do not matter. this means comments are simply done by having more numbers than necessary, at which point the interpreter will have already stopped
+
+#ifndef PROG
+#define PROG "+ 12" // -> error because addition is missing an operand
+#endif
+
+#ifndef PROG
 #define PROG "/ * + 1 - 4 2 3 3" // -> 3
+#endif
+
+#define BUFFER_SIZE 256
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,7 +22,8 @@ loosely inspired by the following Computerphile video: https://www.youtube.com/w
 enum{
 	NoError,
 	ParserError, // thought it would be necessary, but became unused
-	ExecError
+	ExecError,
+	FileOpenError
 }; // errorcodes
 
 typedef enum{
@@ -36,20 +46,25 @@ char isOperator(char c);
 char isFor(char* expr);
 tree_t* parseE(char** expression);
 int parseTree(tree_t* node);
+int myLog10(int n);
+int myPow(int a, int b);
 
 tree_t* root; // having this be global makes preventing memory-leaks SIGNIFICANTLY less of a headache
 
 int main(int argc, char** argv){
-	char* expression;
+	char expression[BUFFER_SIZE];
 	if(argc < 2){
-		printf("No additional cmd line args entered, evaluating hardcoded program instead:\n");
-		expression = PROG;
+		printf("No filename entered in cmd line, evaluating hardcoded string instead:\n");
+		strcpy(expression, PROG);
 	}
 	else{
-		printf("entered an additional cmd line arg, evaluating argument:\n");
-		expression = argv[1];
+		/*
+		printf("entered an additional cmd line arg, evaluating file:\n");
+		FILE* file = fopen(argv[1], "r");
+		if(!fread(expression, 1, BUFFER_SIZE, file)) return FileOpenError;
+		*/
 	}
-	char* progCounter = expression;
+	char* progCounter = expression; // this is a convenience-related idea I had when starting out this implementation because I was back on the "read the whole expression from a string" pain-train. this way, I don't lose track of the start of the expression. didn't end up needing it but I very well could have.
 
 	// parse into bin-tree
 	root = parseE(&progCounter);
@@ -65,9 +80,26 @@ int main(int argc, char** argv){
 	return NoError;
 }
 
-// create new tree_t type node
+int myLog10(int n){
+	int i;
+	for(i = 1; !(n/10); i++){
+		n = n/10;
+	}
+	return i;
+}
+
+int myPow(int a, int b){
+	int n = 1;
+	while(b > 0){
+		n = n * a;
+		b--;
+	}
+	return n;
+}
+
+// create new tree_t node
 tree_t* createTree(NodeType type, int value){
-	tree_t* new =(tree_t*) malloc(sizeof(tree_t));
+	tree_t* new = (tree_t*) malloc(sizeof(tree_t));
 	new->type = type;
 	new->value = value;
 	new->left = new->right = NULL;
@@ -83,7 +115,7 @@ void freeTree(tree_t* node){
 	}
 }
 
-// print tree (prefixed). should return the same thing as was inputted, with additional [] for readability
+// print tree. should return the same thing as was inputted, with additional [] for readability
 void printTree(tree_t* node){
 	if(!node){
 		return;
@@ -103,7 +135,7 @@ void printTree(tree_t* node){
 	else if(node->type == OPERAND){
 		printf("%d", node->value);
 	}
-	else if(node->type == FOR_LOOP){ //unimplemented
+	else if(node->type == FOR_LOOP){ // unimplemented
 		printf("for ");
 		printTree(node->left);
 		printf(" do ");
@@ -126,6 +158,9 @@ int parseTree(tree_t* node){
 
 			case '/':
 				return parseTree(node->left) / parseTree(node->right);
+			
+			case '^':
+				return myPow(parseTree(node->left), parseTree(node->right));
 
 			default:
 				printf("unknown operator found: %c", node->value);
@@ -133,11 +168,34 @@ int parseTree(tree_t* node){
 				exit(ExecError);
 		}
 	}
+
 	if(node->type == OPERAND){
 		return node->value;
 	}
-	if(node->type == FOR_LOOP){
-		return 0; // unimplemented
+	
+	if(node->type == FOR_LOOP){ // don't use this istg
+	/*
+		switch(node->value)
+		{
+			case '+':
+				int i = parseTree(node->left);
+				int result = 0;
+				while(i){
+					result += parseTree(node->right);
+					i--;
+				}
+				return result;
+
+			case '*':
+				int i = parseTree(node->left);
+				int result = 1;
+				while(i){
+					result *= parseTree(node->right);
+					i--;
+				}
+				return result;
+		}
+	*/
 	}
 	return 0;
 }
@@ -148,17 +206,17 @@ char isOperator(char c){
 		|| c == '-'
 		|| c == '*'
 		|| c == '/'
+		|| c == '^'
 	);
 }
 
 // unimplemented, don't use this in your code. forloop-check
-char isFor(char* expr){
-	return strncmp(expr, "f", 1) == 0; // originally wanted to write "for" to start loops but after a while it became a nightmare to handle so I scrapped it
+char isFor(char* expression){
+	return strncmp(expression, "f+", 2) == 0 || strncmp(expression, "f*", 2) == 0; // originally wanted to write "for" to start loops but after a while it became a nightmare to handle so I scrapped it
 }
 
 // parse expression to build the bin tree
 tree_t* parseE(char** expression){
-
 	if(**expression == '\0') return NULL;
 	if(**expression == EOF) return NULL;
 
@@ -167,15 +225,20 @@ tree_t* parseE(char** expression){
 
 	// unimplemented, please don't use this in your code. forloop
 	if(isFor(*expression)){
-		(*expression)++; // skip over f and the operation to perform
+		/*
+		(*expression)++; // skip over f
 		while(**expression == ' ') (*expression)++; // skip spaces
 
 		tree_t* condition = parseE(expression);
 		tree_t* body = parseE(expression);
-		tree_t* node = createTree(FOR_LOOP, 'f');
+		tree_t* node = createTree(FOR_LOOP, *expression[0]);
 		node->left = condition;
 		node->right = body;
+
+		(*expression)++; // skip over the operation to perform
+
 		return node;
+		*/
 	}
 
 	// + - * / ^
@@ -190,9 +253,9 @@ tree_t* parseE(char** expression){
 
 	// numbers lol lmao
 	if(isdigit(**expression)){
-		char* operand = *expression;
-		(*expression)++;
-		return createTree(OPERAND, atoi(operand));
+		char* start = *expression;
+		while(isdigit(**expression)) (*expression)++;  // Advance through all digits
+		return createTree(OPERAND, atoi(start));
 	}
 
 	return NULL;
@@ -394,160 +457,160 @@ int main(int argc, char* argv[]){
 		exit(CmdArgNbError);
 	}
 
-FILE *file = fopen(FILENAME, "r");
-if(!file){
-printf("Could not open file '%s'\n", FILENAME);
-exit(FileOpenError);
-}
-int stack[MAX_STACK_SIZE];
+	FILE *file = fopen(FILENAME, "r");
+	if(!file){
+		printf("Could not open file '%s'\n", FILENAME);
+		exit(FileOpenError);
+	}
+	int stack[MAX_STACK_SIZE];
 	int top = -1; // keep track of the element to use
-int vars[MAXVARS];
+	int vars[MAXVARS];
 	calc(file);
 
-// when all is done, the result is the last element in stack
-if(!top){
-printf("Result: %d\n", pop());
-}
+	// when all is done, the result is the last element in stack
+	if(!top){
+		printf("Result: %d\n", pop());
+	}
 	else{
-printf("Error: The stack is not empty, something went wrong.\n");
-fclose(file);
-exit(StackNotEmptyError);
-}
-return 0;
+		printf("Error: The stack is not empty, something went wrong.\n");
+		fclose(file);
+		exit(StackNotEmptyError);
+	}
+	return 0;
 }
 
 // stack-related
 void push(int* top, int value){
-if(top < MAX_STACK_SIZE - 1){
+	if(top < MAX_STACK_SIZE - 1){
 		*top += 1;
-stack[top] = value;
-}
+		stack[top] = value;
+	}
 	else{
-printf("Stack Overflow!\n");
-}
+		printf("Stack Overflow!\n");
+	}
 }
 
 int pop(int* top){
-if(top < 0){
-printf("Error: Stack Underflow\n");
-exit(StackUnderflowError);
-}
+	if(top < 0){
+		printf("Error: Stack Underflow\n");
+		exit(StackUnderflowError);
+	}
 	*top -= 1;
-return stack[top];
+	return stack[top];
 }
 
 // read file with code
 void rFile(int* top, FILE *file){
-char line[BUFFER_SIZE];
-char token[BUFFER_SIZE];
+	char line[BUFFER_SIZE];
+	char token[BUFFER_SIZE];
 
 	// initialize everything to 0
 	for(int i = 0; i < MAXVARS; i++){
-varray[i] = 0;
-}
+		varray[i] = 0;
+	}
 
-// read file line by line
-while(fscanf(file, "%s", token) != EOF){
-if(!strcmp(token, "while")){
-handle_while(file);
-}
+	// read file line by line
+	while(fscanf(file, "%s", token) != EOF){
+		if(!strcmp(token, "while")){
+		handle_while(file);
+		}
 		
 		else if(isalpha(token[0]) && strlen(token) == 1){
-char var = token[0];
-fscanf(file, "%s", token); // looking for '='
-fscanf(file, "%s", token); // value to assign
-int value = atoi(token);
-set_variable_value(var, value);
-}
+			char var = token[0];
+			fscanf(file, "%s", token); // looking for '='
+			fscanf(file, "%s", token); // value to assign
+			int value = atoi(token);
+			set_variable_value(var, value);
+		}
 		
 		else if(token[0] == '+' || token[0] == '-' || token[0] == '*' || token[0] == '/' || token[0] == '^'){
-// Process an operation
-int operand1 = evaluate_expression(file);
-int operand2 = evaluate_expression(file);
-int result = perform_operation(token[0], operand1, operand2);
-push(result);
-}
+			// Process an operation
+			int operand1 = evaluate_expression(file);
+			int operand2 = evaluate_expression(file);
+			int result = perform_operation(token[0], operand1, operand2);
+			push(result);
+		}
 }
 
-// Print the final result if there is one
-if(top == 0){
-printf("Result: %d\n", pop(top));
-}
-	
+	// Print the final result if there is one
+	if(top == 0){
+		printf("Result: %d\n", pop(top));
+	}
+		
 	else{
-printf("Error: The stack is not empty, something went wrong.\n");
-}
+		printf("Error: The stack is not empty, something went wrong.\n");
+	}
 
-fclose(file);
+	fclose(file);
 }
 
 // operations
 int calc(char op, int a, int b){
-switch(op){
-case '+': return a+b;
-case '-': return a-b;
-case '*': return a*b;
-case '/':
-if(b){ // legal
-return a/b; // integer division
-}
+	switch(op){
+		case '+': return a+b;
+		case '-': return a-b;
+		case '*': return a*b;
+		case '/':
+			if(b){ // legal
+				return a/b; // integer division
+			}
 			else{ // division by 0 is impossible
-printf("Error: attempted to divide by 0\n");
-exit(ValueError);
-}
+				printf("Error: attempted to divide by 0\n");
+				exit(ValueError);
+			}
 		case '^': return a^b;
-default: // invalid operation
-printf("Error: invalid operation: %c\n", op);
+		default: // invalid operation
+			printf("Error: invalid operation: %c\n", op);
 			exit(InvalidOperationError);
-}
+	}
 }
 
 int getVar(char var){
 	if(var >= aStart && var <= aEnd){
-return varray[var - aStart];  // Convert char to index
-}
-printf("Error: invalid variable '%c'\n", var);
-exit(InvalidOperationError);  // Exit on undefined variable
+		return varray[var - aStart];  // Convert char to index
+	}
+	printf("Error: invalid variable '%c'\n", var);
+	exit(InvalidOperationError);  // Exit on undefined variable
 }
 
 int setVar(char var, int val){
 	if(var >= aStart && var <= aEnd){
-varray[var - aStart] = val;
-}
+	varray[var - aStart] = val;
+	}
 	
 	else{
-printf("Error: invalid variable '%c'\n", var);
-exit(InvalidOperationError);  // Exit on invalid variable
-}
+		printf("Error: invalid variable '%c'\n", var);
+		exit(InvalidOperationError);  // Exit on invalid variable
+	}
 }
 
 void whileLoops(FILE *file){
 	char token[BUFFER_SIZE];
-fscanf(file, "%s", token);
+	fscanf(file, "%s", token);
 
-if(strcmp(token, "while")){
-printf("Error: Expected 'while', got '%s'\n", token);
-exit(InvalidOperationError);
-}
+	if(strcmp(token, "while")){
+		printf("Error: Expected 'while', got '%s'\n", token);
+		exit(InvalidOperationError);
+	}
 
-// eval condition
-int condition = calc(file);
+	// eval condition
+	int condition = calc(file);
 
-while(condition){
-// eval contents
-fscanf(file, "%s", token);
+	while(condition){
+		// eval contents
+		fscanf(file, "%s", token);
 
-// Assuming we read "begin" for starting loop body
-if(strcmp(token, "begin")){
-printf("Error: Expected 'begin', got '%s'\n", token);
-exit(InvalidOperationError);
-}
+		// Assuming we read "begin" for starting loop body
+		if(strcmp(token, "begin")){
+			printf("Error: Expected 'begin', got '%s'\n", token);
+			exit(InvalidOperationError);
+		}
 
-// Process the body of the loop(let's assume it's a simple expression or sequence of expressions)
-calc(file); // This is just a simple example; you can expand it to handle multiple statements
+		// Process the body of the loop(let's assume it's a simple expression or sequence of expressions)
+		calc(file); // This is just a simple example; you can expand it to handle multiple statements
 
-// Evaluate the condition again after running the loop body
-condition = calc(file);
-}
+		// Evaluate the condition again after running the loop body
+		condition = calc(file);
+	}
 }
 */
