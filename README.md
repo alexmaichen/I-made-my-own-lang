@@ -1,8 +1,11 @@
 # I-made-my-own-lang
 There comes a point at which every programmer wonders how programming languages read the user's code. At least I know I have in the past. Well, working on this I am slowly gaining more and more respect for people that have, because as it turns out anything outside of postfixed parsing is a complete nightmare.
 You may have noticed the two massive block-comments at the tail-end of the file. These have old implementation-ideas that were then scrapped. Follow the following hyperlinks to see the details to all versions.
+- [v3](#v3)
 - [v2](#v2)
 - [v1](#v1)
+
+Approximate time spent on this project: 130 hours
 
 # v3
 ## general information
