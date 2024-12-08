@@ -62,4 +62,5 @@ int myPow(int a, int b);
 
 # v1
 ## main differences
-- This started with the stack-approach seen for postfixed interpreters as seen in [this Computerphile YouTube video](https://www.youtube.com/watch?v=Q2UDHY5as90) about the basics of writing an interpreter. The stack had a top-pointer to say where the most recently added element was put. I tried this idea as a concept (and never tested the code in v1, I just wanted to see what it might look like) but quickly realized I'd have to rewrite a bunch of the code anyway to apply this to a prefixed syntax so I scrapped the idea.
+- This started with the stack-approach seen for postfixed interpreters as seen in [this Computerphile YouTube video](https://www.youtube.com/watch?v=Q2UDHY5as90) about the basics of writing an interpreter. The stack had a top-pointer to say where the most recently added element was put.
+- I tried this idea as a concept (and never tested the code in v1, I just wanted to see what it might look like) but quickly realized I'd have to rewrite a bunch of the code anyway to apply this to a prefixed syntax so I scrapped the idea.
