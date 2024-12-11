@@ -5,9 +5,52 @@ You may have noticed the two massive block-comments at the tail-end of the file.
 - [v2](#v2)
 - [v1](#v1)
 
-Approximate time spent on this project: 130 hours
+Approximate time spent on this project: 145 hours
+
 
 # v3
+## 3.1
+## general information
+Added a few new things:
+- Errors I can not be bothered to give a particular description are now referred to as the umbrella-term "MiscError".
+- parsing-tree has 3 branches now! this allows for ternary operations to be implemented with minimal effort.
+- condition AKA branch syntax is a bit like in c, with "? (cond) (what happens if cond) (what happens if !cond)"
+- added block comments with ' (as opposed to only the "end of file"-like comments that only exist because the parser never gets to them)
+- loops have no real use-cases since variables do not yet exist
+- loop syntax is "l (cond) (what happens while cond)"
+- final result gets an arrow "->" before it so it can be easier differentiated from regular outputs, and possibly print statements which might get implemented later
+- added boolean or "| x y", and "& a b", not "! a" operators
+- missing operands evaluate to 0 now, and show as (0)
+- added more presets (pieces of example-code) to try out various features.
+
+## functions
+char isOp_1(char c);
+- handles operators of arity 1
+
+char isOp_2(char c);
+- handles operators of arity 2
+
+char isOp_3(char c);
+- handles operators of arity 3 (this includes the newly added ? operator)
+
+char isComment(char c);
+- checks for "'" symbol
+- says if the parser should skip reading everything from the "'" symbol until a second "'" or the end of the file appears, whichever comes first
+
+char isLoop(char c);
+- checks for "l" symbol
+
+int myLog10(int n);
+- now should return correct value
+
+## coming soon
+- variables
+- lists?
+- char-/string-printing operator + string-storage + user input?
+- () to visually delimit operations?
+
+
+## 3.0
 ## general information
 This language is prefixed. That means you start with the instuction, and then give the operands to use it on.
 - Thus, the sum of 3 and 8 is written as "+ 3 8"
@@ -55,6 +98,7 @@ int myPow(int a, int b);
 - Some compilers do not know the pow(double, double) macro in the math.h header. That is why I created my own, which works well enough for the purposes of this project.
 - Returns to compute a to the power of b.
 
+
 # v2
 ## main differences
 - This had all parts of the operation (so both operands and the operator) inside the tree-node. After calculating a result in one of the two tree-branches, the result for that tree-banch would be saved in the layer above.
@@ -62,6 +106,7 @@ int myPow(int a, int b);
 - For this version I had planned more error-handling (more possible errorcodes, and a ! operator to raise an error and print everything out, which would essentially act as a debugging tool) and still used a static token-size of 1. I originally planned to allow for longer tokens, but after some thinking I realized I could simply use 1 character for every basic operation.
 - I defined custom types for operations and numbers, which while making my code more readable made it too abstract for me to work with effectively. For that reason, those types were scrapped for v3
 - This implementation did not yet have the proper parsing of numbers like v3 does because I did not know about the int atoi(char*) function yet.
+
 
 # v1
 ## main differences
