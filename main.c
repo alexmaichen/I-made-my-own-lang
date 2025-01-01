@@ -2,46 +2,55 @@
 loosely inspired by the following Computerphile video: https://www.youtube.com/watch?v=Q2UDHY5as90
 */
 
+// pick the program you wish to execute (or write your own below)
 #define PROG_PRESET 0
 
 #if PROG_PRESET == 0
+#define PROG ""
+// -> 0 because empty tree AKA nullpointer gets interpreted as 0
+#endif
+
+#if PROG_PRESET == 1
 #define PROG "1 this is an accidental comment"
 // -> 1 because trailing elements do not matter. this means comments are simply done by having more numbers than necessary, at which point the interpreter will have already stopped
 #endif
 
-#if PROG_PRESET == 1
-#define PROG "* + 12"
-// -> missing stuff gets autofilled with 0
-#endif
-
 #if PROG_PRESET == 2
-#define PROG "/ * + 1 - 4 2 3 3"
-// -> 3
+#define PROG "* + 12"
+// -> empty subtrees AKA nullpointers get interpreted as 0
 #endif
 
 #if PROG_PRESET == 3
+#define PROG "/ * + 1 - 4 2 3 3"
+// -> 3 nesting instuctions allows for more complex behavior
+#endif
+
+#if PROG_PRESET == 4
 #define PROG "+ 2 'this is a comment' 1"
 // -> 1
 #endif
 
-#if PROG_PRESET == 4
-#define PROG ""
-// -> 0 because empty tree means 0
-#endif
-
 #if PROG_PRESET == 5
-#define PROG "* 14 ? !1 + 0 1 - 0 1"
-// -> -14 :D
+#define PROG "* 14 ? !1\n+ 0 1 - 0 1"
+// -> -14 we have negative numbers btw :D
 #endif
 
 #if PROG_PRESET == 6
-#define PROG "= A 6"
-// -> 6 (and A == 6)
+#define PROG "= A 6 e      # A"
+// -> 6 (and A == 6, which will like all variables get printed out at the end of the programs execution)
+#endif
+
+#if PROG_PRESET == 7
+#define PROG "(^ 3 3)"
+// -> 27 parentheses may be added for readability, but not mandatory. The parser just skips over them all the same.
 #endif
 
 #define BUFFER_SIZE 256
 #define ALPHABET_SIZE ('Z' - 'A' + 1)
-#define SKIP_SPACES while(**expression == ' ') (*expression)++;
+#define IS_EOF (**expression == '\0' || **expression == EOF)
+#define SKIP_SPACES while(**expression == ' ' || **expression == '\n' || **expression == '(' || **expression == ')') (*expression)++;
+#define SKIP_COMMENT if(isComment(**expression)){do{(*expression)++;} while(!isComment(**expression) && **expression != '\0' && **expression != EOF); if(!IS_EOF) (*expression)++;}
+#define SKIP_UNNECESSARY SKIP_SPACES SKIP_COMMENT
 #define EXECUTABLE_NAME "myCode"
 
 #include <stdio.h>
@@ -61,7 +70,6 @@ typedef enum{
 	OPERATOR,
 	OPERAND,
 	LOOP,
-	VARIABLEACCESS,
 	VARIABLE
 } NodeType; // types of nodes that exist. this enum makes readability better
 
@@ -70,7 +78,7 @@ typedef struct tree_t{
 	int value;
 	struct tree_t* left;
 	struct tree_t* right;
-	struct tree_t* center; // some operations could be ternary, so in case I ever wish to implement those this is essential to have
+	struct tree_t* center; // some operations could be ternary, and therefore the only reasonable workaround if I wanted to avoid ternary trees would have been having the condition be right child, and the two outcomes be in the right subtree. This would have meant I'd have needed to add an argument to my tree-parser function to make it remember the previous result, which I did not feel like doing. It is so much cleaner to have all steps on one layer as opposed to two.
 } tree_t;
 
 // math
@@ -92,11 +100,15 @@ char isLoop(char c);
 char isVar(char c);
 
 // parser
+void preParse(char** expression);
 tree_t* parseE(char** expression);
+
+void freeAll(void);
+void printVars(void);
 
 // having the following be global makes preventing memory-leaks and access SIGNIFICANTLY less of a headache
 tree_t* root; // instruction tree root which we'll want to access everywhere in the program
-int vars[ALPHABET_SIZE]; // global variables for the programmer to use which we'll obviously want access to everywhere
+tree_t* vars[ALPHABET_SIZE]; // hey uh so these are functions now...? I'm not sure how to handle variable scope yet.
 
 int main(int argc, char** argv){
 	char expression[BUFFER_SIZE];
@@ -121,26 +133,55 @@ int main(int argc, char** argv){
 	printf("-> %d\n", result);
 
 	freeTree(root);
+	
+	printVars();
 
 	return NoError;
 }
 
-// parse expression to build the bin tree
-tree_t* parseE(char** expression){
-	if(**expression == '\0') return NULL;
-	if(**expression == EOF) return NULL;
+void preParse(char** expression){
 
-	// whitespace is irrelevant
-	SKIP_SPACES;
+	while(!IS_EOF){
 
-	if(isComment(**expression)){
-		do{
+		SKIP_UNNECESSARY;
+		
+		if(**expression != '='){
 			(*expression)++;
 		}
-		while(!isComment(**expression));
-		(*expression)++;
+		SKIP_UNNECESSARY;
+		
+		if(**expression >= 'A' && **expression <= 'Z'){
+			if(vars[**expression - 'A']){ // garbage-collection any time variables are overwritten
+				freeTree(vars[**expression - 'A']);
+			}
+			vars[**expression - 'A'] = parseE(expression + 1);
+			(*expression)++;
+		}
+		else{ // only capital letters are accepted as possible vars
+			printf("invalid definition to %c\n", **expression);
+			freeAll();
+			exit(ParserError);
+		}
 	}
-	SKIP_SPACES;
+}
+
+// parse expression to build the bin tree
+tree_t* parseE(char** expression){
+	if(IS_EOF) return NULL;
+
+	SKIP_UNNECESSARY;
+
+	if(**expression == '='){
+		(*expression)++;
+		SKIP_UNNECESSARY;
+		if(**expression >= 'A' && **expression <= 'Z'){
+			while(**expression != 'e' && !IS_EOF){
+				SKIP_UNNECESSARY;
+			}
+		}
+	}
+
+	SKIP_UNNECESSARY;
 
 	if(isOp_1(**expression)){
 		char operator = **expression;
@@ -214,11 +255,10 @@ char isOp_2(char c){
 		|| c == '*'
 		|| c == '/'
 		|| c == '^'
-		|| c == '='
 	);
 }
 
-char isOp_3(char c){ // TODO
+char isOp_3(char c){
 	return c == '?';
 }
 
@@ -243,7 +283,7 @@ tree_t* createTree(NodeType type, int value){
 	tree_t* new = (tree_t*) malloc(sizeof(tree_t));
 	new->type = type;
 	new->value = value;
-	new->left = new->right = NULL;
+	new->left = new->right = new->center = NULL;
 	return new;
 }
 
@@ -314,6 +354,9 @@ int parseTree(tree_t* node){
 		
 		switch(node->value)
 		{
+			case '#':
+				return parseTree(node->left);
+
 			case '+':
 				return a + b;
 
@@ -325,7 +368,7 @@ int parseTree(tree_t* node){
 
 			case '/':
 				if(b != 0) return a / b;
-				freeTree(root);
+				freeAll();
 				printf("Error: Division by 0.\n");
 				exit(ExecError);
 			
@@ -352,13 +395,10 @@ int parseTree(tree_t* node){
 
 			case '>':
 				return a > b;
-			
-			case '=':
-				return vars[a - 'A'] = b; // TODO this doesn't work yet
 
 			default:
 				printf("Error: Unknown operator found: %c", node->value);
-				freeTree(root);
+				freeAll();
 				exit(ExecError);
 		}
 	}
@@ -368,4 +408,19 @@ int parseTree(tree_t* node){
 	}
 
 	return 0;
+}
+
+void freeAll(void){
+	freeTree(root);
+	for(int i = 0; i < ALPHABET_SIZE; i++){
+		if(vars[i]) freeTree(vars[i]);
+	}
+}
+
+void printVars(void){
+	printf("[\n");
+	for(int i = 0; i < ALPHABET_SIZE; i++){
+		printf("%d = %d\n", i, parseTree(vars[i]));
+	}
+	printf("]\n");
 }
